@@ -1,691 +1,159 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NFL Analytics Lab</title>
-
-  <!-- Browser-only dependencies -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-
   <style>
     :root{
-      --bg:#07111f;
-      --panel:#0d1b2d;
-      --panel2:#11233a;
-      --line:#223855;
-      --text:#f7f9fc;
-      --muted:#91a4bb;
-      --accent:#4da3ff;
-      --good:#4ed2a0;
-      --bad:#ff7171;
-      --shadow:0 18px 50px rgba(0,0,0,.25);
+      --bg:#07111f;--panel:#0d1b2d;--panel2:#11233a;--line:#223855;
+      --text:#f7f9fc;--muted:#91a4bb;--accent:#4da3ff;--good:#4ed2a0;
+      --bad:#ff7171;--shadow:0 18px 50px rgba(0,0,0,.25)
     }
     *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      background:
-        radial-gradient(circle at 20% 0%,rgba(77,163,255,.12),transparent 26rem),
-        var(--bg);
-      color:var(--text);
-    }
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:radial-gradient(circle at 20% 0%,rgba(77,163,255,.12),transparent 26rem),var(--bg);color:var(--text)}
     button,select,input{font:inherit}
-    header{
-      position:sticky;top:0;z-index:20;
-      backdrop-filter:blur(14px);
-      background:rgba(7,17,31,.88);
-      border-bottom:1px solid var(--line);
-    }
-    .header-inner{
-      max-width:1450px;margin:auto;padding:16px 24px;
-      display:flex;align-items:center;justify-content:space-between;gap:20px;
-    }
-    .brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:-.02em}
-    .brand-badge{
-      width:38px;height:38px;border-radius:12px;
-      display:grid;place-items:center;background:linear-gradient(135deg,#2789ff,#75bdff);
-      box-shadow:0 8px 30px rgba(77,163,255,.25);
-      font-size:20px;
-    }
-    .live{
-      display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px
-    }
-    .dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 14px var(--good)}
-    main{max-width:1450px;margin:auto;padding:22px 24px 70px}
-    .hero{
-      display:flex;justify-content:space-between;align-items:end;gap:20px;margin:8px 0 20px;
-    }
-    h1{font-size:clamp(28px,4vw,48px);margin:0;letter-spacing:-.045em}
-    h2,h3{letter-spacing:-.025em}
-    .hero p{margin:8px 0 0;color:var(--muted);max-width:760px}
-    .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-    select,button{
-      color:var(--text);background:var(--panel2);border:1px solid var(--line);
-      border-radius:10px;padding:10px 12px;
-    }
-    button{cursor:pointer}
-    button:hover{border-color:#3f638d}
-    nav{
-      display:flex;gap:7px;overflow:auto;padding:6px;
-      border:1px solid var(--line);background:rgba(13,27,45,.72);
-      border-radius:14px;margin-bottom:18px;
-    }
-    nav button{white-space:nowrap;border:0;background:transparent;color:var(--muted);font-weight:700}
-    nav button.active{background:var(--panel2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
-    .tab{display:none}.tab.active{display:block}
-    .panel{
-      background:linear-gradient(180deg,rgba(17,35,58,.94),rgba(13,27,45,.94));
-      border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow);
-      margin-bottom:16px;
-    }
-    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:10px}
-    .panel h2,.panel h3{margin:0}
-    .muted{color:var(--muted)}
-    .grid{display:grid;gap:16px}
-    .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
-    .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-    .metric{
-      background:rgba(7,17,31,.5);border:1px solid var(--line);border-radius:13px;padding:14px;
-    }
-    .metric .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
-    .metric .value{font-size:24px;font-weight:800;margin-top:3px}
-    .chart{height:560px}
-    .chart.small{height:460px}
-    .loader{
-      padding:22px;border-radius:12px;background:rgba(77,163,255,.08);border:1px solid rgba(77,163,255,.25);
-      color:#b8d9ff;margin:12px 0;
-    }
-    .error{background:rgba(255,113,113,.08);border-color:rgba(255,113,113,.3);color:#ffc4c4}
-    .team-header{display:flex;align-items:center;gap:18px}
-    .team-header img{width:90px;height:90px;object-fit:contain}
-    .team-header h2{font-size:30px}
-    table{width:100%;border-collapse:collapse;font-size:13px}
-    th{position:sticky;top:0;background:#12243a;color:#c8d7e8;text-align:left;padding:10px;border-bottom:1px solid var(--line)}
-    td{padding:9px 10px;border-bottom:1px solid rgba(34,56,85,.65)}
-    tbody tr:hover{background:rgba(77,163,255,.05)}
-    .table-wrap{max-height:680px;overflow:auto;border:1px solid var(--line);border-radius:12px}
-    .pill{font-size:12px;padding:5px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
-    .source-note{font-size:12px;color:var(--muted);line-height:1.5}
-    .footer{margin-top:30px;color:var(--muted);font-size:12px;text-align:center}
-    @media(max-width:900px){
-      .grid-2,.grid-3{grid-template-columns:1fr}
-      .metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-      .hero{align-items:flex-start;flex-direction:column}
-      .chart{height:470px}
-    }
-    @media(max-width:560px){
-      main,.header-inner{padding-left:12px;padding-right:12px}
-      .metric-grid{grid-template-columns:1fr 1fr}
-      .team-header img{width:65px;height:65px}
-    }
+    header{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);background:rgba(7,17,31,.9);border-bottom:1px solid var(--line)}
+    .header-inner{max-width:1450px;margin:auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:800}.brand-badge{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#2789ff,#75bdff)}
+    .live{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}.dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 14px var(--good)}
+    main{max-width:1450px;margin:auto;padding:22px 24px 70px}.hero{display:flex;justify-content:space-between;align-items:end;gap:20px;margin:8px 0 20px}
+    h1{font-size:clamp(28px,4vw,48px);margin:0;letter-spacing:-.045em}h2,h3{letter-spacing:-.025em}.hero p{margin:8px 0 0;color:var(--muted);max-width:780px}
+    .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}select,button,input{color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+    button{cursor:pointer}nav{display:flex;gap:7px;overflow:auto;padding:6px;border:1px solid var(--line);background:rgba(13,27,45,.72);border-radius:14px;margin-bottom:18px}
+    nav button{white-space:nowrap;border:0;background:transparent;color:var(--muted);font-weight:700}nav button.active{background:var(--panel2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+    .tab{display:none}.tab.active{display:block}.panel{background:linear-gradient(180deg,rgba(17,35,58,.94),rgba(13,27,45,.94));border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow);margin-bottom:16px}
+    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:10px}.panel h2,.panel h3{margin:0}.muted{color:var(--muted)}
+    .grid{display:grid;gap:16px}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .metric{background:rgba(7,17,31,.5);border:1px solid var(--line);border-radius:13px;padding:14px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}.metric .value{font-size:24px;font-weight:800;margin-top:3px}
+    .chart{height:560px}.chart.small{height:460px}.loader{padding:22px;border-radius:12px;background:rgba(77,163,255,.08);border:1px solid rgba(77,163,255,.25);color:#b8d9ff;margin:12px 0}
+    .error{background:rgba(255,113,113,.08);border-color:rgba(255,113,113,.3);color:#ffc4c4}.team-header{display:flex;align-items:center;gap:18px}.team-header img{width:90px;height:90px;object-fit:contain}.team-header h2{font-size:30px}
+    table{width:100%;border-collapse:collapse;font-size:13px}th{position:sticky;top:0;background:#12243a;color:#c8d7e8;text-align:left;padding:10px;border-bottom:1px solid var(--line)}
+    td{padding:9px 10px;border-bottom:1px solid rgba(34,56,85,.65)}tbody tr:hover{background:rgba(77,163,255,.05)}.table-wrap{max-height:680px;overflow:auto;border:1px solid var(--line);border-radius:12px}
+    .pill{font-size:12px;padding:5px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}.source-note{font-size:12px;color:var(--muted);line-height:1.5}.footer{margin-top:30px;color:var(--muted);font-size:12px;text-align:center}
+    @media(max-width:900px){.grid-2{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{align-items:flex-start;flex-direction:column}.chart{height:470px}}
+    @media(max-width:560px){main,.header-inner{padding-left:12px;padding-right:12px}.team-header img{width:65px;height:65px}}
   </style>
 </head>
 <body>
-<header>
-  <div class="header-inner">
-    <div class="brand"><div class="brand-badge">🏈</div><div>NFL Analytics Lab</div></div>
-    <div class="live"><span class="dot"></span><span id="dataStatus">Live public data</span></div>
-  </div>
-</header>
-
+<header><div class="header-inner"><div class="brand"><div class="brand-badge">🏈</div><div>NFL Analytics Lab</div></div><div class="live"><span class="dot"></span><span id="dataStatus">Loading local analytics data…</span></div></div></header>
 <main>
   <section class="hero">
-    <div>
-      <h1>Football analytics, built for exploration.</h1>
-      <p>Browser-only NFL analytics powered by nflverse. Data is fetched directly from public releases when you load a season—no Python or Streamlit required.</p>
-    </div>
-    <div class="controls">
-      <label>Season
-        <select id="globalSeason">
-          <option value="2026">2026</option>
-          <option value="2025" selected>2025</option>
-          <option value="2024">2024</option>
-          <option value="2023">2023</option>
-        </select>
-      </label>
-      <button id="refreshBtn">↻ Refresh data</button>
-    </div>
+    <div><h1>Football analytics, built for exploration.</h1><p>Fast, browser-based NFL analytics. GitHub automatically refreshes the underlying data from nflverse, while the website reads small same-origin JSON files.</p></div>
+    <div class="controls"><label>Season <select id="globalSeason"></select></label><button id="refreshBtn">↻ Reload</button></div>
   </section>
 
   <nav id="tabs">
-    <button class="active" data-tab="overview">EPA Tiers</button>
-    <button data-tab="defense">Defense</button>
-    <button data-tab="offense">Offense</button>
-    <button data-tab="team">Team Detail</button>
-    <button data-tab="players">Position Groups</button>
+    <button class="active" data-tab="overview">EPA Tiers</button><button data-tab="defense">Defense</button><button data-tab="offense">Offense</button><button data-tab="team">Team Detail</button><button data-tab="players">Position Groups</button>
   </nav>
 
-  <section id="overview" class="tab active">
-    <div class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>Offense vs. Defense EPA/play</h2>
-          <div class="muted">Higher/right = better offense. Higher/up = better defense.</div>
-        </div>
-        <label class="pill"><input type="checkbox" id="oneScoreToggle"> One-score situations (±8)</label>
-      </div>
-      <div id="overviewLoad"></div>
-      <div id="epaChart" class="chart"></div>
-    </div>
-  </section>
+  <section id="overview" class="tab active"><div class="panel"><div class="panel-head"><div><h2>Offense vs. Defense EPA/play</h2><div class="muted">Higher/right = better offense. Higher/up = better defense.</div></div><label class="pill"><input type="checkbox" id="oneScoreToggle"> One-score (±8)</label></div><div id="mainLoad"></div><div id="epaChart" class="chart"></div></div></section>
 
   <section id="defense" class="tab">
-    <div class="panel">
-      <div class="panel-head">
-        <div><h2>Defensive Team Profile</h2><div class="muted">Choose a metric and compare every defense.</div></div>
-        <select id="defMetric">
-          <option value="pressure_rate">Pressure Rate</option>
-          <option value="def_success_rate">Defensive Success Rate</option>
-          <option value="explosive_pass_rate">Explosive Pass Rate Allowed</option>
-          <option value="explosive_run_rate">Explosive Run Rate Allowed</option>
-          <option value="turnover_rate">Turnover Rate Forced</option>
-          <option value="third_down_conv_rate">3rd Down Conversion Allowed</option>
-        </select>
-      </div>
-      <div id="defLoad"></div>
-      <div id="defBar" class="chart small"></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div><h3>Relationship Explorer</h3><div class="muted">Compare any two defensive metrics.</div></div></div>
-      <div class="controls">
-        <select id="defX"></select><span class="muted">vs</span><select id="defY"></select>
-      </div>
-      <div id="defScatter" class="chart small"></div>
-    </div>
+    <div class="panel"><div class="panel-head"><div><h2>Defensive Team Profile</h2><div class="muted">Efficiency, pressure, explosiveness and situational performance.</div></div>
+      <select id="defMetric"><option value="pressure_rate">Pressure Rate</option><option value="def_success_rate">Defensive Success Rate</option><option value="def_explosive_pass_rate">Explosive Pass Allowed</option><option value="def_explosive_run_rate">Explosive Run Allowed</option><option value="def_turnover_rate">Turnover Rate Forced</option><option value="def_third_down_conv_rate">3rd Down Allowed</option></select></div>
+      <div id="defBar" class="chart small"></div></div>
   </section>
 
   <section id="offense" class="tab">
-    <div class="panel">
-      <div class="panel-head">
-        <div><h2>Offensive Team Profile</h2><div class="muted">Efficiency, explosiveness, ball security, and situational performance.</div></div>
-        <select id="offMetric">
-          <option value="off_epa">EPA/play</option>
-          <option value="off_success_rate">Success Rate</option>
-          <option value="explosive_pass_rate">Explosive Pass Rate</option>
-          <option value="explosive_run_rate">Explosive Run Rate</option>
-          <option value="turnover_rate">Turnover Rate</option>
-          <option value="third_down_conv_rate">3rd Down Conversion Rate</option>
-        </select>
-      </div>
-      <div id="offLoad"></div>
-      <div id="offBar" class="chart small"></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div><h3>Relationship Explorer</h3><div class="muted">Compare any two offensive metrics.</div></div></div>
-      <div class="controls">
-        <select id="offX"></select><span class="muted">vs</span><select id="offY"></select>
-      </div>
-      <div id="offScatter" class="chart small"></div>
-    </div>
+    <div class="panel"><div class="panel-head"><div><h2>Offensive Team Profile</h2><div class="muted">EPA, success, explosiveness and situational performance.</div></div>
+      <select id="offMetric"><option value="off_epa">EPA/play</option><option value="off_success_rate">Success Rate</option><option value="off_explosive_pass_rate">Explosive Pass Rate</option><option value="off_explosive_run_rate">Explosive Run Rate</option><option value="off_turnover_rate">Turnover Rate</option><option value="off_third_down_conv_rate">3rd Down Conversion</option></select></div>
+      <div id="offBar" class="chart small"></div></div>
   </section>
 
   <section id="team" class="tab">
-    <div class="panel">
-      <div class="controls"><label>Team <select id="teamSelect"></select></label></div>
-    </div>
-    <div class="panel">
-      <div id="teamHeader" class="team-header"></div>
-      <div class="grid grid-2" style="margin-top:18px">
-        <div><h3>Offense</h3><div id="teamOffMetrics" class="metric-grid"></div></div>
-        <div><h3>Defense</h3><div id="teamDefMetrics" class="metric-grid"></div></div>
-      </div>
-    </div>
+    <div class="panel"><div class="controls"><label>Team <select id="teamSelect"></select></label></div></div>
+    <div class="panel"><div id="teamHeader" class="team-header"></div><div class="grid grid-2" style="margin-top:18px"><div><h3>Offense</h3><div id="teamOffMetrics" class="metric-grid"></div></div><div><h3>Defense</h3><div id="teamDefMetrics" class="metric-grid"></div></div></div></div>
     <div class="panel"><div id="teamEpaChart" class="chart small"></div></div>
   </section>
 
   <section id="players" class="tab">
-    <div class="panel">
-      <div class="panel-head">
-        <div><h2>Position Groups</h2><div class="muted">Season-level player analytics built from nflverse weekly player statistics.</div></div>
-      </div>
-      <div class="controls">
-        <label>Group
-          <select id="positionGroup">
-            <option>QB</option><option>RB</option><option>WR</option><option>OL</option><option>DL</option><option>LB</option><option>DB</option>
-          </select>
-        </label>
-        <label>Team <select id="playerTeam"><option value="ALL">All teams</option></select></label>
-        <label>Minimum games <input id="minGames" type="number" min="1" max="18" value="3" style="width:75px;background:var(--panel2);color:white;border:1px solid var(--line);padding:10px;border-radius:10px"></label>
-      </div>
-      <div id="playerLoad"></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div><h3 id="playerTitle">QB Analytics</h3><div id="playerSubtitle" class="muted"></div></div></div>
-      <div id="playerTable" class="table-wrap"></div>
-    </div>
+    <div class="panel"><div class="panel-head"><div><h2>Position Groups</h2><div class="muted">Per-game and efficiency analytics generated automatically from weekly player data.</div></div></div>
+      <div class="controls"><label>Group <select id="positionGroup"><option>QB</option><option>RB</option><option>WR</option><option>OL</option><option>DL</option><option>LB</option><option>DB</option></select></label>
+      <label>Team <select id="playerTeam"><option value="ALL">All teams</option></select></label><label>Minimum games <input id="minGames" type="number" min="1" max="18" value="3" style="width:75px"></label></div></div>
+    <div class="panel"><div class="panel-head"><div><h3 id="playerTitle">Player Analytics</h3><div id="playerSubtitle" class="muted"></div></div></div><div id="playerTable" class="table-wrap"></div></div>
   </section>
 
-  <div class="panel source-note">
-    <strong>Data source:</strong> nflverse public GitHub releases. Team metrics are calculated in your browser from play-by-play; player analytics are calculated from weekly player statistics. “Pressure rate” here is an approximation using QB hits or sacks per dropback because a complete public pressure flag is not available in the source used.
-  </div>
+  <div class="panel source-note"><strong>Data:</strong> nflverse public releases. A scheduled GitHub Action processes the large source files into compact JSON files stored in this repository, so visitors never have to download the raw play-by-play dataset.</div>
   <div class="footer">NFL Analytics Lab • HTML + JavaScript + Plotly • Data via nflverse</div>
 </main>
 
 <script>
-const URLS = {
-  teams: "https://raw.githubusercontent.com/nflverse/nflverse-pbp/master/teams_colors_logos.csv",
-  pbp: y => `https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_${y}.csv.gz`,
-  players: y => `https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_${y}.csv`
+const state={manifest:null,season:null,teamData:[],playerData:[]};
+const pct=x=>Number.isFinite(Number(x))?`${(Number(x)*100).toFixed(1)}%`:"—";
+const num=(x,d=2)=>Number.isFinite(Number(x))?Number(x).toFixed(d):"—";
+const meta=t=>t||{};
+function show(id,msg,err=false){document.getElementById(id).innerHTML=msg?`<div class="loader ${err?"error":""}">${msg}</div>`:""}
+function layout(title,x,y){return{title:{text:title,font:{color:"#f7f9fc",size:18}},paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",font:{color:"#c8d7e8"},margin:{l:65,r:25,t:65,b:60},xaxis:{title:x,gridcolor:"#223855",zerolinecolor:"#52759b"},yaxis:{title:y,gridcolor:"#223855",zerolinecolor:"#52759b"}}}
+async function getJSON(path){const r=await fetch(path+"?v="+Date.now(),{cache:"no-store"});if(!r.ok)throw new Error(`${r.status} ${r.statusText}`);return r.json()}
+async function loadManifest(){
+  state.manifest=await getJSON("data/manifest.json");
+  const sel=document.getElementById("globalSeason");
+  sel.innerHTML=state.manifest.seasons.slice().sort((a,b)=>b-a).map(y=>`<option value="${y}">${y}</option>`).join("");
+  state.season=state.manifest.default_season||state.manifest.seasons[0];
+  sel.value=state.season;
+  document.getElementById("dataStatus").textContent=`Updated ${state.manifest.updated_utc||""}`;
+}
+async function loadSeason(){
+  show("mainLoad",`Loading ${state.season} analytics…`);
+  [state.teamData,state.playerData]=await Promise.all([
+    getJSON(`data/team_metrics_${state.season}.json`),
+    getJSON(`data/player_metrics_${state.season}.json`)
+  ]);
+  show("mainLoad","");
+}
+function teamColor(d){return d.team_color||"#4da3ff"}
+function renderOverview(){
+  const one=document.getElementById("oneScoreToggle").checked;
+  const x=state.teamData.map(d=>one?d.off_epa_onescore:d.off_epa),y=state.teamData.map(d=>one?d.def_epa_onescore:d.def_epa);
+  Plotly.newPlot("epaChart",[{x,y,mode:"markers+text",text:state.teamData.map(d=>d.team),textposition:"top center",marker:{size:16,color:state.teamData.map(teamColor),line:{color:"#dce9f8",width:1}},customdata:state.teamData.map(d=>d.team_name||d.team),hovertemplate:"<b>%{customdata}</b><br>Off EPA/play: %{x:.3f}<br>Def EPA/play: %{y:.3f}<extra></extra>"}],layout(`${state.season} EPA Tiers${one?" — One-Score":""}`,"Offensive EPA/play","Defensive EPA/play (higher = better)"),{responsive:true});
+}
+const DEF={pressure_rate:"Pressure Rate",def_success_rate:"Defensive Success Rate",def_explosive_pass_rate:"Explosive Pass Allowed",def_explosive_run_rate:"Explosive Run Allowed",def_turnover_rate:"Turnover Rate Forced",def_third_down_conv_rate:"3rd Down Allowed"};
+const OFF={off_epa:"EPA/play",off_success_rate:"Success Rate",off_explosive_pass_rate:"Explosive Pass Rate",off_explosive_run_rate:"Explosive Run Rate",off_turnover_rate:"Turnover Rate",off_third_down_conv_rate:"3rd Down Conversion"};
+function renderDefense(){
+  const k=document.getElementById("defMetric").value,rows=[...state.teamData].sort((a,b)=>Number(b[k])-Number(a[k]));
+  Plotly.newPlot("defBar",[{x:rows.map(d=>d.team),y:rows.map(d=>Number(d[k])*100),type:"bar",marker:{color:rows.map(teamColor)},hovertemplate:"<b>%{x}</b><br>%{y:.1f}%<extra></extra>"}],layout(`${DEF[k]} — ${state.season}`,"Team","Percent"),{responsive:true});
+}
+function renderOffense(){
+  const k=document.getElementById("offMetric").value,f=k==="off_epa"?1:100,rows=[...state.teamData].sort((a,b)=>Number(b[k])-Number(a[k]));
+  Plotly.newPlot("offBar",[{x:rows.map(d=>d.team),y:rows.map(d=>Number(d[k])*f),type:"bar",marker:{color:rows.map(teamColor)}}],layout(`${OFF[k]} — ${state.season}`,"Team",OFF[k]),{responsive:true});
+}
+const card=(l,v)=>`<div class="metric"><div class="label">${l}</div><div class="value">${v}</div></div>`;
+function renderTeam(){
+  const s=document.getElementById("teamSelect"),teams=state.teamData.map(d=>d.team).sort();
+  if(!teams.includes(s.value)){s.innerHTML=teams.map(t=>{const d=state.teamData.find(x=>x.team===t);return `<option value="${t}">${d.team_name||t}</option>`}).join("");if(teams.includes("MIN"))s.value="MIN"}
+  const d=state.teamData.find(x=>x.team===s.value);if(!d)return;
+  document.getElementById("teamHeader").innerHTML=`${d.team_logo?`<img src="${d.team_logo}" alt="${d.team} logo">`:""}<div><h2>${d.team_name||d.team} <span class="muted">(${d.team})</span></h2><div class="muted">${state.season} regular-season analytics</div></div>`;
+  document.getElementById("teamOffMetrics").innerHTML=[card("EPA/play",num(d.off_epa,3)),card("Success Rate",pct(d.off_success_rate)),card("Explosive Pass",pct(d.off_explosive_pass_rate)),card("Explosive Run",pct(d.off_explosive_run_rate)),card("Turnover Rate",pct(d.off_turnover_rate)),card("3rd Down",pct(d.off_third_down_conv_rate))].join("");
+  document.getElementById("teamDefMetrics").innerHTML=[card("Def EPA/play",num(d.def_epa,3)),card("Success Rate",pct(d.def_success_rate)),card("Pressure Rate",pct(d.pressure_rate)),card("Explosive Pass Allowed",pct(d.def_explosive_pass_rate)),card("Turnovers Forced",pct(d.def_turnover_rate)),card("3rd Down Allowed",pct(d.def_third_down_conv_rate))].join("");
+  const rest=state.teamData.filter(x=>x.team!==d.team);
+  Plotly.newPlot("teamEpaChart",[{x:rest.map(x=>x.off_epa),y:rest.map(x=>x.def_epa),mode:"markers+text",text:rest.map(x=>x.team),textposition:"top center",marker:{size:10,color:"#637b96"}},{x:[d.off_epa],y:[d.def_epa],mode:"markers+text",text:[d.team],textposition:"top center",marker:{size:23,color:d.team_color||"#4da3ff",line:{color:"#fff",width:2}}}],layout(`${d.team_name||d.team} vs League — ${state.season}`,"Offensive EPA/play","Defensive EPA/play"),{responsive:true});
+}
+const CFG={
+  QB:["QB efficiency and decision-making",[["Player","player_name"],["Team","team"],["G","games"],["Att/G","attempts_pg"],["Pass Yds/G","pass_yards_pg"],["TD/G","pass_tds_pg"],["INT/G","pass_ints_pg"],["EPA/DB","epa_per_dropback"],["Y/A","yards_per_attempt"],["Comp%","completion_pct","pct"],["TD%","td_rate","pct"],["INT%","int_rate","pct"],["Sack%","sack_rate","pct"],["CPOE","passing_cpoe_avg"]],"epa_per_dropback"],
+  RB:["Rushing and receiving efficiency",[["Player","player_name"],["Team","team"],["G","games"],["Carries/G","carries_pg"],["Rush Yds/G","rush_yards_pg"],["Rush TD/G","rush_tds_pg"],["Y/Carry","yards_per_carry"],["EPA/Rush","epa_per_rush"],["Rush 1D%","rush_fd_rate","pct"],["Targets/G","targets_pg"],["Rec Yds/G","rec_yards_pg"],["Y/Tgt","yards_per_target"]],"epa_per_rush"],
+  WR:["Targets, air yards and receiving efficiency",[["Player","player_name"],["Team","team"],["G","games"],["Targets/G","targets_pg"],["Rec Yds/G","rec_yards_pg"],["TD/G","rec_tds_pg"],["Y/Tgt","yards_per_target"],["EPA/Tgt","epa_per_target"],["1D%","rec_fd_rate","pct"],["Target Share","target_share_avg","pct"],["Air Yds Share","air_yards_share_avg","pct"],["WOPR","wopr_avg"],["RACR","racr_avg"]],"epa_per_target"],
+  OL:["Availability and penalties",[["Player","player_name"],["Team","team"],["Pos","position"],["G","games"],["Pen/G","penalties_pg"],["Penalty Yds/G","penalty_yards_pg"]],"games"],
+  DL:["Front production",[["Player","player_name"],["Team","team"],["Pos","position"],["G","games"],["Tackles/G","tackles_pg"],["TFL/G","tfl_pg"],["Sacks/G","sacks_pg"],["QB Hits/G","qb_hits_pg"],["FF/G","forced_fumbles_pg"]],"sacks_pg"],
+  LB:["Tackle and splash-play production",[["Player","player_name"],["Team","team"],["G","games"],["Tackles/G","tackles_pg"],["TFL/G","tfl_pg"],["Sacks/G","sacks_pg"],["INT/G","ints_pg"],["FF/G","forced_fumbles_pg"]],"tackles_pg"],
+  DB:["Coverage disruption and ball production",[["Player","player_name"],["Team","team"],["Pos","position"],["G","games"],["Tackles/G","tackles_pg"],["PBUs/G","pbu_pg"],["INT/G","ints_pg"],["FF/G","forced_fumbles_pg"],["Def TD/G","def_tds_pg"]],"pbu_pg"]
 };
-
-const state = {
-  season: 2025,
-  teams: [],
-  teamMap: new Map(),
-  pbpCache: new Map(),
-  playerCache: new Map(),
-  teamMetricsCache: new Map()
-};
-
-const pct = x => Number.isFinite(x) ? `${(x*100).toFixed(1)}%` : "—";
-const num = (x,d=2) => Number.isFinite(x) ? x.toFixed(d) : "—";
-const n = x => {
-  const v = Number(x);
-  return Number.isFinite(v) ? v : 0;
-};
-const bool1 = x => x===1 || x==="1" || x===true || x==="TRUE";
-const mean = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : NaN;
-const safeDiv = (a,b) => b ? a/b : 0;
-
-function showMsg(id, text, error=false){
-  const el=document.getElementById(id);
-  if(!text){el.innerHTML="";return;}
-  el.innerHTML=`<div class="loader ${error?'error':''}">${text}</div>`;
+function renderPlayers(){
+  const group=document.getElementById("positionGroup").value,minG=Math.max(1,Number(document.getElementById("minGames").value)||1),teamSel=document.getElementById("playerTeam");
+  const teams=[...new Set(state.playerData.map(p=>p.team))].sort(),old=teamSel.value;teamSel.innerHTML=`<option value="ALL">All teams</option>`+teams.map(t=>`<option>${t}</option>`).join("");teamSel.value=teams.includes(old)?old:"ALL";
+  const [sub,cols,sort]=CFG[group];let rows=state.playerData.filter(p=>p.position_group===group&&Number(p.games)>=minG&&(teamSel.value==="ALL"||p.team===teamSel.value)).sort((a,b)=>Number(b[sort])-Number(a[sort]));
+  document.getElementById("playerTitle").textContent=`${group} Analytics — ${state.season}`;document.getElementById("playerSubtitle").textContent=`${sub} • ${rows.length} players`;
+  let html="<table><thead><tr>"+cols.map(c=>`<th>${c[0]}</th>`).join("")+"</tr></thead><tbody>";
+  html+=rows.map(r=>"<tr>"+cols.map(c=>{const v=r[c[1]];let s=c[2]==="pct"?pct(v):["player_name","team","position"].includes(c[1])?(v??""):c[1]==="games"?v:num(v,2);return `<td>${s}</td>`}).join("")+"</tr>").join("")+"</tbody></table>";
+  document.getElementById("playerTable").innerHTML=html;
 }
-
-async function fetchText(url){
-  const r=await fetch(url,{cache:"no-store"});
-  if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  return await r.text();
-}
-async function fetchGzipText(url){
-  const r=await fetch(url,{cache:"no-store"});
-  if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  const ab=await r.arrayBuffer();
-  return pako.ungzip(new Uint8Array(ab),{to:"string"});
-}
-function parseCSV(text){
-  return Papa.parse(text,{header:true,dynamicTyping:true,skipEmptyLines:true}).data;
-}
-
-async function loadTeams(){
-  if(state.teams.length) return;
-  const rows=parseCSV(await fetchText(URLS.teams));
-  state.teams=rows;
-  rows.forEach(t=>state.teamMap.set(t.team_abbr,t));
-}
-
-async function loadPBP(year, force=false){
-  if(!force && state.pbpCache.has(year)) return state.pbpCache.get(year);
-  showMsg("overviewLoad",`Loading ${year} play-by-play directly from nflverse… first load can take a little while.`);
-  showMsg("defLoad",`Loading ${year} play-by-play…`);
-  showMsg("offLoad",`Loading ${year} play-by-play…`);
-  try{
-    const txt=await fetchGzipText(URLS.pbp(year));
-    const rows=parseCSV(txt).filter(r=>r.season_type==="REG" && (r.play_type==="pass" || r.play_type==="run"));
-    state.pbpCache.set(year,rows);
-    showMsg("overviewLoad","");showMsg("defLoad","");showMsg("offLoad","");
-    return rows;
-  }catch(e){
-    const msg=`Could not load ${year} play-by-play (${e.message}). The season may not be published yet, or your browser may be blocking GitHub release requests. Try 2025 or open this file through a small local web server / VS Code Live Server.`;
-    showMsg("overviewLoad",msg,true);showMsg("defLoad",msg,true);showMsg("offLoad",msg,true);
-    throw e;
-  }
-}
-
-async function loadPlayers(year, force=false){
-  if(!force && state.playerCache.has(year)) return state.playerCache.get(year);
-  showMsg("playerLoad",`Loading ${year} weekly player stats directly from nflverse…`);
-  try{
-    const txt=await fetchText(URLS.players(year));
-    const rows=parseCSV(txt).filter(r=>r.season_type==="REG");
-    state.playerCache.set(year,rows);
-    showMsg("playerLoad","");
-    return rows;
-  }catch(e){
-    showMsg("playerLoad",`Could not load ${year} player stats (${e.message}). Try another season or use VS Code Live Server.`,true);
-    throw e;
-  }
-}
-
-function computeTeamMetrics(rows){
-  const offense=new Map(), defense=new Map();
-  const makeOff=()=>({plays:0,epa:0,oneN:0,oneEpa:0,success:0,expPass:0,passN:0,expRun:0,runN:0,to:0,third:0,thirdConv:0});
-  const makeDef=()=>({plays:0,epaAllowed:0,oneN:0,oneEpaAllowed:0,success:0,expPass:0,passN:0,expRun:0,runN:0,to:0,dropbacks:0,pressures:0,third:0,thirdConv:0});
-  rows.forEach(r=>{
-    const e=n(r.epa), one=Math.abs(n(r.score_differential))<=8, pass=r.play_type==="pass", run=r.play_type==="run";
-    if(r.posteam){
-      if(!offense.has(r.posteam)) offense.set(r.posteam,makeOff());
-      const o=offense.get(r.posteam);o.plays++;o.epa+=e;if(e>0)o.success++;
-      if(one){o.oneN++;o.oneEpa+=e}
-      if(pass){o.passN++;if(n(r.yards_gained)>=15)o.expPass++}
-      if(run){o.runN++;if(n(r.yards_gained)>=10)o.expRun++}
-      if(bool1(r.interception)||bool1(r.fumble_lost))o.to++;
-      if(n(r.down)===3){o.third++;if(bool1(r.first_down))o.thirdConv++}
-    }
-    if(r.defteam){
-      if(!defense.has(r.defteam)) defense.set(r.defteam,makeDef());
-      const d=defense.get(r.defteam);d.plays++;d.epaAllowed+=e;if(e<0)d.success++;
-      if(one){d.oneN++;d.oneEpaAllowed+=e}
-      if(pass){d.passN++;if(n(r.yards_gained)>=15)d.expPass++}
-      if(run){d.runN++;if(n(r.yards_gained)>=10)d.expRun++}
-      if(bool1(r.interception)||bool1(r.fumble_lost))d.to++;
-      const drop=bool1(r.dropback) || pass || bool1(r.sack) || bool1(r.qb_scramble);
-      if(drop){d.dropbacks++;if(bool1(r.qb_hit)||bool1(r.sack))d.pressures++}
-      if(n(r.down)===3){d.third++;if(bool1(r.first_down))d.thirdConv++}
-    }
-  });
-  const teams=new Set([...offense.keys(),...defense.keys()]);
-  return [...teams].map(team=>{
-    const o=offense.get(team)||makeOff(), d=defense.get(team)||makeDef();
-    return {
-      team,
-      off_epa:safeDiv(o.epa,o.plays),
-      off_epa_onescore:safeDiv(o.oneEpa,o.oneN),
-      def_epa:-safeDiv(d.epaAllowed,d.plays),
-      def_epa_onescore:-safeDiv(d.oneEpaAllowed,d.oneN),
-      off_success_rate:safeDiv(o.success,o.plays),
-      off_explosive_pass_rate:safeDiv(o.expPass,o.passN),
-      off_explosive_run_rate:safeDiv(o.expRun,o.runN),
-      off_turnover_rate:safeDiv(o.to,o.plays),
-      off_third_down_conv_rate:safeDiv(o.thirdConv,o.third),
-      pressure_rate:safeDiv(d.pressures,d.dropbacks),
-      def_success_rate:safeDiv(d.success,d.plays),
-      def_explosive_pass_rate:safeDiv(d.expPass,d.passN),
-      def_explosive_run_rate:safeDiv(d.expRun,d.runN),
-      def_turnover_rate:safeDiv(d.to,d.plays),
-      def_third_down_conv_rate:safeDiv(d.thirdConv,d.third)
-    };
-  }).filter(x=>x.team);
-}
-async function getTeamMetrics(year,force=false){
-  if(!force && state.teamMetricsCache.has(year)) return state.teamMetricsCache.get(year);
-  const rows=await loadPBP(year,force);
-  const m=computeTeamMetrics(rows);
-  state.teamMetricsCache.set(year,m);
-  return m;
-}
-
-function teamMeta(abbr){
-  return state.teamMap.get(abbr)||{team_abbr:abbr,team_name:abbr,team_color:"#4da3ff",team_color2:"#91a4bb",team_logo_espn:""};
-}
-function plotLayout(title,xTitle,yTitle){
-  return {
-    title:{text:title,font:{color:"#f7f9fc",size:18}},
-    paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",
-    font:{color:"#c8d7e8"},
-    margin:{l:65,r:25,t:65,b:60},
-    xaxis:{title:xTitle,gridcolor:"#223855",zerolinecolor:"#52759b"},
-    yaxis:{title:yTitle,gridcolor:"#223855",zerolinecolor:"#52759b"},
-    hoverlabel:{bgcolor:"#12243a"}
-  };
-}
-
-async function renderOverview(){
-  try{
-    const data=await getTeamMetrics(state.season);
-    const one=document.getElementById("oneScoreToggle").checked;
-    const x=data.map(d=>one?d.off_epa_onescore:d.off_epa);
-    const y=data.map(d=>one?d.def_epa_onescore:d.def_epa);
-    const colors=data.map(d=>teamMeta(d.team).team_color||"#4da3ff");
-    Plotly.newPlot("epaChart",[{
-      x,y,mode:"markers+text",text:data.map(d=>d.team),textposition:"top center",
-      marker:{size:16,color:colors,line:{color:"#dce9f8",width:1}},
-      customdata:data.map(d=>teamMeta(d.team).team_name),
-      hovertemplate:"<b>%{customdata}</b><br>Off EPA/play: %{x:.3f}<br>Def EPA/play: %{y:.3f}<extra></extra>"
-    }],plotLayout(`${state.season} EPA Tiers${one?" — One-Score Situations":""}`,"Offensive EPA/play","Defensive EPA/play (higher = better)"),{responsive:true});
-  }catch(e){}
-}
-
-const DEF_LABELS={
-  pressure_rate:"Pressure Rate",
-  def_success_rate:"Defensive Success Rate",
-  explosive_pass_rate:"Explosive Pass Rate Allowed",
-  explosive_run_rate:"Explosive Run Rate Allowed",
-  turnover_rate:"Turnover Rate Forced",
-  third_down_conv_rate:"3rd Down Conversion Allowed"
-};
-const OFF_LABELS={
-  off_epa:"EPA/play",
-  off_success_rate:"Success Rate",
-  explosive_pass_rate:"Explosive Pass Rate",
-  explosive_run_rate:"Explosive Run Rate",
-  turnover_rate:"Turnover Rate",
-  third_down_conv_rate:"3rd Down Conversion Rate"
-};
-function defVal(d,k){
-  return ({
-    pressure_rate:d.pressure_rate,
-    def_success_rate:d.def_success_rate,
-    explosive_pass_rate:d.def_explosive_pass_rate,
-    explosive_run_rate:d.def_explosive_run_rate,
-    turnover_rate:d.def_turnover_rate,
-    third_down_conv_rate:d.def_third_down_conv_rate
-  })[k];
-}
-function offVal(d,k){
-  return ({
-    off_epa:d.off_epa,
-    off_success_rate:d.off_success_rate,
-    explosive_pass_rate:d.off_explosive_pass_rate,
-    explosive_run_rate:d.off_explosive_run_rate,
-    turnover_rate:d.off_turnover_rate,
-    third_down_conv_rate:d.off_third_down_conv_rate
-  })[k];
-}
-function fillMetricSelects(){
-  for(const [id,labels,defaults] of [["defX",DEF_LABELS,["pressure_rate"]],["defY",DEF_LABELS,["def_success_rate"]],["offX",OFF_LABELS,["off_epa"]],["offY",OFF_LABELS,["off_success_rate"]]]){
-    const el=document.getElementById(id);el.innerHTML="";
-    Object.entries(labels).forEach(([v,l])=>{const o=document.createElement("option");o.value=v;o.textContent=l;el.appendChild(o)});
-    el.value=defaults[0];
-  }
-}
-async function renderDefense(){
-  try{
-    const data=await getTeamMetrics(state.season);
-    const k=document.getElementById("defMetric").value;
-    const sorted=[...data].sort((a,b)=>defVal(b,k)-defVal(a,k));
-    Plotly.newPlot("defBar",[{
-      x:sorted.map(d=>d.team),y:sorted.map(d=>defVal(d,k)*100),type:"bar",
-      marker:{color:sorted.map(d=>teamMeta(d.team).team_color||"#4da3ff")},
-      hovertemplate:"<b>%{x}</b><br>%{y:.1f}%<extra></extra>"
-    }],plotLayout(`${DEF_LABELS[k]} — ${state.season}`,"Team","Percent"),{responsive:true});
-    const xk=document.getElementById("defX").value,yk=document.getElementById("defY").value;
-    Plotly.newPlot("defScatter",[{
-      x:data.map(d=>defVal(d,xk)*100),y:data.map(d=>defVal(d,yk)*100),mode:"markers+text",
-      text:data.map(d=>d.team),textposition:"top center",
-      marker:{size:13,color:data.map(d=>teamMeta(d.team).team_color||"#4da3ff")},
-      hovertemplate:"<b>%{text}</b><br>X: %{x:.1f}%<br>Y: %{y:.1f}%<extra></extra>"
-    }],plotLayout(`${DEF_LABELS[xk]} vs ${DEF_LABELS[yk]} — ${state.season}`,DEF_LABELS[xk]+" (%)",DEF_LABELS[yk]+" (%)"),{responsive:true});
-  }catch(e){}
-}
-async function renderOffense(){
-  try{
-    const data=await getTeamMetrics(state.season);
-    const k=document.getElementById("offMetric").value;
-    const factor=k==="off_epa"?1:100;
-    const sorted=[...data].sort((a,b)=>offVal(b,k)-offVal(a,k));
-    Plotly.newPlot("offBar",[{
-      x:sorted.map(d=>d.team),y:sorted.map(d=>offVal(d,k)*factor),type:"bar",
-      marker:{color:sorted.map(d=>teamMeta(d.team).team_color||"#4da3ff")},
-      hovertemplate:`<b>%{x}</b><br>%{y:.${k==="off_epa"?3:1}f}${k==="off_epa"?"":"%"}<extra></extra>`
-    }],plotLayout(`${OFF_LABELS[k]} — ${state.season}`,"Team",OFF_LABELS[k]),{responsive:true});
-    const xk=document.getElementById("offX").value,yk=document.getElementById("offY").value;
-    const xf=xk==="off_epa"?1:100,yf=yk==="off_epa"?1:100;
-    Plotly.newPlot("offScatter",[{
-      x:data.map(d=>offVal(d,xk)*xf),y:data.map(d=>offVal(d,yk)*yf),mode:"markers+text",
-      text:data.map(d=>d.team),textposition:"top center",
-      marker:{size:13,color:data.map(d=>teamMeta(d.team).team_color||"#4da3ff")}
-    }],plotLayout(`${OFF_LABELS[xk]} vs ${OFF_LABELS[yk]} — ${state.season}`,OFF_LABELS[xk],OFF_LABELS[yk]),{responsive:true});
-  }catch(e){}
-}
-function metricCard(label,value){return `<div class="metric"><div class="label">${label}</div><div class="value">${value}</div></div>`}
-async function renderTeam(){
-  try{
-    const data=await getTeamMetrics(state.season);
-    const sel=document.getElementById("teamSelect");
-    const teams=data.map(d=>d.team).sort();
-    if(!teams.includes(sel.value)){
-      sel.innerHTML=teams.map(t=>`<option value="${t}">${teamMeta(t).team_name}</option>`).join("");
-      if(teams.includes("MIN"))sel.value="MIN";
-    }
-    const team=sel.value||teams[0], d=data.find(x=>x.team===team), m=teamMeta(team);
-    document.getElementById("teamHeader").innerHTML=`
-      <img src="${m.team_logo_espn||""}" alt="${team} logo">
-      <div><div class="pill" style="display:inline-block;border-color:${m.team_color}">${m.team_division||""}</div>
-      <h2>${m.team_name} <span class="muted">(${team})</span></h2>
-      <div class="muted">${state.season} regular-season analytics</div></div>`;
-    document.getElementById("teamOffMetrics").innerHTML=[
-      metricCard("EPA/play",num(d.off_epa,3)),
-      metricCard("Success Rate",pct(d.off_success_rate)),
-      metricCard("Explosive Pass",pct(d.off_explosive_pass_rate)),
-      metricCard("Explosive Run",pct(d.off_explosive_run_rate)),
-      metricCard("Turnover Rate",pct(d.off_turnover_rate)),
-      metricCard("3rd Down",pct(d.off_third_down_conv_rate))
-    ].join("");
-    document.getElementById("teamDefMetrics").innerHTML=[
-      metricCard("Def EPA/play",num(d.def_epa,3)),
-      metricCard("Success Rate",pct(d.def_success_rate)),
-      metricCard("Pressure Rate",pct(d.pressure_rate)),
-      metricCard("Explosive Pass Allowed",pct(d.def_explosive_pass_rate)),
-      metricCard("Turnovers Forced",pct(d.def_turnover_rate)),
-      metricCard("3rd Down Allowed",pct(d.def_third_down_conv_rate))
-    ].join("");
-    Plotly.newPlot("teamEpaChart",[
-      {x:data.filter(x=>x.team!==team).map(x=>x.off_epa),y:data.filter(x=>x.team!==team).map(x=>x.def_epa),mode:"markers+text",text:data.filter(x=>x.team!==team).map(x=>x.team),textposition:"top center",marker:{size:10,color:"#637b96"},hoverinfo:"text"},
-      {x:[d.off_epa],y:[d.def_epa],mode:"markers+text",text:[team],textposition:"top center",marker:{size:23,color:m.team_color||"#4da3ff",line:{color:"#fff",width:2}},hovertemplate:`<b>${m.team_name}</b><br>Off: %{x:.3f}<br>Def: %{y:.3f}<extra></extra>`}
-    ],plotLayout(`${m.team_name} vs League — ${state.season}`,"Offensive EPA/play","Defensive EPA/play"),{responsive:true});
-  }catch(e){}
-}
-
-function posGroup(pos){
-  pos=String(pos||"").toUpperCase();
-  if(pos==="QB")return"QB";
-  if(["RB","FB"].includes(pos))return"RB";
-  if(["WR","TE"].includes(pos))return"WR";
-  if(["C","G","OG","T","OT","OL","LT","RT","LG","RG"].includes(pos))return"OL";
-  if(["CB","DB","S","SS","FS","SAF"].includes(pos))return"DB";
-  if(["ILB","MLB","LB"].includes(pos))return"LB";
-  if(["DE","DT","NT","DI","DL","OLB","EDGE"].includes(pos))return"DL";
-  return"Other";
-}
-function aggregatePlayers(rows){
-  const map=new Map();
-  rows.forEach(r=>{
-    const name=r.player_display_name||r.player_name||r.player_id;
-    if(!name||!r.team)return;
-    const g=posGroup(r.position);
-    const key=[r.player_id||name,r.team,g].join("|");
-    if(!map.has(key))map.set(key,{player:name,team:r.team,pos:r.position,group:g,weeks:new Set(),
-      attempts:0,completions:0,passY:0,passTD:0,passINT:0,sacksS:0,passEPA:0,cpoeW:0,cpoeAtt:0,airY:0,yac:0,
-      carries:0,rushY:0,rushTD:0,rushFD:0,rushEPA:0,
-      targets:0,recY:0,recTD:0,recFD:0,recEPA:0,targetShareW:0,airShareW:0,woprW:0,racrW:0,
-      tackles:0,tfl:0,defSacks:0,qbHits:0,defINT:0,pbu:0,ff:0,defTD:0,pen:0,penY:0});
-    const p=map.get(key);p.weeks.add(r.week);
-    p.attempts+=n(r.attempts);p.completions+=n(r.completions);p.passY+=n(r.passing_yards);p.passTD+=n(r.passing_tds);p.passINT+=n(r.passing_interceptions);p.sacksS+=n(r.sacks_suffered);p.passEPA+=n(r.passing_epa);p.airY+=n(r.passing_air_yards);p.yac+=n(r.passing_yards_after_catch);
-    p.cpoeW+=n(r.passing_cpoe)*n(r.attempts);p.cpoeAtt+=n(r.attempts);
-    p.carries+=n(r.carries);p.rushY+=n(r.rushing_yards);p.rushTD+=n(r.rushing_tds);p.rushFD+=n(r.rushing_first_downs);p.rushEPA+=n(r.rushing_epa);
-    p.targets+=n(r.targets);p.recY+=n(r.receiving_yards);p.recTD+=n(r.receiving_tds);p.recFD+=n(r.receiving_first_downs);p.recEPA+=n(r.receiving_epa);
-    p.targetShareW+=n(r.target_share)*n(r.targets);p.airShareW+=n(r.air_yards_share)*n(r.targets);p.woprW+=n(r.wopr)*n(r.targets);p.racrW+=n(r.racr)*n(r.targets);
-    p.tackles+=n(r.def_tackles_solo)+n(r.def_tackle_assists);p.tfl+=n(r.def_tackles_for_loss);p.defSacks+=n(r.def_sacks);p.qbHits+=n(r.def_qb_hits);p.defINT+=n(r.def_interceptions);p.pbu+=n(r.def_pass_defended);p.ff+=n(r.def_fumbles_forced);p.defTD+=n(r.def_tds);
-    p.pen+=n(r.penalties);p.penY+=n(r.penalty_yards);
-  });
-  return [...map.values()].map(p=>{
-    const G=Math.max(1,p.weeks.size),db=p.attempts+p.sacksS;
-    return {...p,G,
-      attG:p.attempts/G,passYG:p.passY/G,passTDG:p.passTD/G,passINTG:p.passINT/G,epaDB:safeDiv(p.passEPA,db),YPA:safeDiv(p.passY,p.attempts),compPct:safeDiv(p.completions,p.attempts),tdPct:safeDiv(p.passTD,p.attempts),intPct:safeDiv(p.passINT,p.attempts),sackPct:safeDiv(p.sacksS,db),cpoe:safeDiv(p.cpoeW,p.cpoeAtt),airAtt:safeDiv(p.airY,p.attempts),yacComp:safeDiv(p.yac,p.completions),
-      carriesG:p.carries/G,rushYG:p.rushY/G,rushTDG:p.rushTD/G,YPC:safeDiv(p.rushY,p.carries),epaRush:safeDiv(p.rushEPA,p.carries),rushFDPct:safeDiv(p.rushFD,p.carries),
-      targetsG:p.targets/G,recYG:p.recY/G,recTDG:p.recTD/G,YPT:safeDiv(p.recY,p.targets),epaTarget:safeDiv(p.recEPA,p.targets),recFDPct:safeDiv(p.recFD,p.targets),targetShare:safeDiv(p.targetShareW,p.targets),airShare:safeDiv(p.airShareW,p.targets),wopr:safeDiv(p.woprW,p.targets),racr:safeDiv(p.racrW,p.targets),
-      tacklesG:p.tackles/G,tflG:p.tfl/G,sacksG:p.defSacks/G,qbHitsG:p.qbHits/G,intsG:p.defINT/G,pbuG:p.pbu/G,ffG:p.ff/G,defTDG:p.defTD/G,penG:p.pen/G,penYG:p.penY/G
-    };
-  });
-}
-const PLAYER_CONFIG={
-  QB:{subtitle:"Efficiency and decision-making",sort:"epaDB",cols:[["Player","player"],["Team","team"],["G","G"],["Att/G","attG"],["Pass Yds/G","passYG"],["TD/G","passTDG"],["INT/G","passINTG"],["EPA/DB","epaDB"],["Y/A","YPA"],["Comp%","compPct","pct"],["TD%","tdPct","pct"],["INT%","intPct","pct"],["Sack%","sackPct","pct"],["CPOE","cpoe"]]},
-  RB:{subtitle:"Rushing and receiving efficiency",sort:"epaRush",cols:[["Player","player"],["Team","team"],["G","G"],["Carries/G","carriesG"],["Rush Yds/G","rushYG"],["Rush TD/G","rushTDG"],["Y/Carry","YPC"],["EPA/Rush","epaRush"],["Rush 1D%","rushFDPct","pct"],["Targets/G","targetsG"],["Rec Yds/G","recYG"],["Y/Tgt","YPT"]]},
-  WR:{subtitle:"Targets, air yards, and receiving efficiency",sort:"epaTarget",cols:[["Player","player"],["Team","team"],["G","G"],["Targets/G","targetsG"],["Rec Yds/G","recYG"],["TD/G","recTDG"],["Y/Tgt","YPT"],["EPA/Tgt","epaTarget"],["1D%","recFDPct","pct"],["Target Share","targetShare","pct"],["Air Yds Share","airShare","pct"],["WOPR","wopr"],["RACR","racr"]]},
-  OL:{subtitle:"Availability and penalties (public weekly data has limited blocking analytics)",sort:"G",cols:[["Player","player"],["Team","team"],["Pos","pos"],["G","G"],["Pen/G","penG"],["Penalty Yds/G","penYG"]]},
-  DL:{subtitle:"Front production",sort:"sacksG",cols:[["Player","player"],["Team","team"],["Pos","pos"],["G","G"],["Tackles/G","tacklesG"],["TFL/G","tflG"],["Sacks/G","sacksG"],["QB Hits/G","qbHitsG"],["FF/G","ffG"]]},
-  LB:{subtitle:"Tackle and splash-play production",sort:"tacklesG",cols:[["Player","player"],["Team","team"],["G","G"],["Tackles/G","tacklesG"],["TFL/G","tflG"],["Sacks/G","sacksG"],["INT/G","intsG"],["FF/G","ffG"]]},
-  DB:{subtitle:"Coverage disruption and ball production",sort:"pbuG",cols:[["Player","player"],["Team","team"],["Pos","pos"],["G","G"],["Tackles/G","tacklesG"],["PBUs/G","pbuG"],["INT/G","intsG"],["FF/G","ffG"],["Def TD/G","defTDG"]]}
-};
-async function renderPlayers(){
-  try{
-    const rows=await loadPlayers(state.season);
-    const agg=aggregatePlayers(rows);
-    const group=document.getElementById("positionGroup").value;
-    const minG=Math.max(1,n(document.getElementById("minGames").value));
-    const teamSel=document.getElementById("playerTeam");
-    const teams=[...new Set(agg.map(p=>p.team))].filter(Boolean).sort();
-    const old=teamSel.value;
-    teamSel.innerHTML=`<option value="ALL">All teams</option>`+teams.map(t=>`<option value="${t}">${t}</option>`).join("");
-    teamSel.value=teams.includes(old)?old:"ALL";
-    const cfg=PLAYER_CONFIG[group];
-    let players=agg.filter(p=>p.group===group && p.G>=minG && (teamSel.value==="ALL"||p.team===teamSel.value));
-    players.sort((a,b)=>n(b[cfg.sort])-n(a[cfg.sort]));
-    document.getElementById("playerTitle").textContent=`${group} Analytics — ${state.season}`;
-    document.getElementById("playerSubtitle").textContent=`${cfg.subtitle} • ${players.length} players shown`;
-    let out="<table><thead><tr>"+cfg.cols.map(c=>`<th>${c[0]}</th>`).join("")+"</tr></thead><tbody>";
-    out+=players.map(p=>"<tr>"+cfg.cols.map(c=>{
-      const v=p[c[1]];
-      let s;
-      if(c[2]==="pct")s=pct(v);
-      else if(["player","team","pos"].includes(c[1]))s=v??"";
-      else if(c[1]==="G")s=v;
-      else s=num(n(v),2);
-      return `<td>${s}</td>`;
-    }).join("")+"</tr>").join("");
-    out+="</tbody></table>";
-    document.getElementById("playerTable").innerHTML=out;
-  }catch(e){}
-}
-
-async function renderCurrentTab(){
-  const active=document.querySelector(".tab.active").id;
-  if(active==="overview")await renderOverview();
-  if(active==="defense")await renderDefense();
-  if(active==="offense")await renderOffense();
-  if(active==="team")await renderTeam();
-  if(active==="players")await renderPlayers();
-}
-async function changeSeason(force=false){
-  state.season=Number(document.getElementById("globalSeason").value);
-  document.getElementById("dataStatus").textContent=`nflverse • ${state.season}`;
-  if(force){
-    state.pbpCache.delete(state.season);state.playerCache.delete(state.season);state.teamMetricsCache.delete(state.season);
-  }
-  await renderCurrentTab();
-}
-
-document.querySelectorAll("#tabs button").forEach(btn=>btn.addEventListener("click",async()=>{
-  document.querySelectorAll("#tabs button").forEach(b=>b.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  btn.classList.add("active");document.getElementById(btn.dataset.tab).classList.add("active");
-  await renderCurrentTab();
-}));
-document.getElementById("globalSeason").addEventListener("change",()=>changeSeason(false));
-document.getElementById("refreshBtn").addEventListener("click",()=>changeSeason(true));
-document.getElementById("oneScoreToggle").addEventListener("change",renderOverview);
-document.getElementById("defMetric").addEventListener("change",renderDefense);
-document.getElementById("defX").addEventListener("change",renderDefense);
-document.getElementById("defY").addEventListener("change",renderDefense);
-document.getElementById("offMetric").addEventListener("change",renderOffense);
-document.getElementById("offX").addEventListener("change",renderOffense);
-document.getElementById("offY").addEventListener("change",renderOffense);
-document.getElementById("teamSelect").addEventListener("change",renderTeam);
-document.getElementById("positionGroup").addEventListener("change",renderPlayers);
-document.getElementById("playerTeam").addEventListener("change",renderPlayers);
-document.getElementById("minGames").addEventListener("change",renderPlayers);
-
-(async function init(){
-  fillMetricSelects();
-  try{await loadTeams();}catch(e){console.warn("Team metadata failed",e)}
-  await renderOverview();
-})();
+async function renderCurrent(){const id=document.querySelector(".tab.active").id;if(id==="overview")renderOverview();if(id==="defense")renderDefense();if(id==="offense")renderOffense();if(id==="team")renderTeam();if(id==="players")renderPlayers()}
+async function changeSeason(){state.season=Number(document.getElementById("globalSeason").value);try{await loadSeason();document.getElementById("dataStatus").textContent=`${state.season} • updated ${state.manifest.updated_utc}`;await renderCurrent()}catch(e){show("mainLoad",`Data for ${state.season} is not ready yet: ${e.message}`,true)}}
+document.querySelectorAll("#tabs button").forEach(b=>b.onclick=async()=>{document.querySelectorAll("#tabs button").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.getElementById(b.dataset.tab).classList.add("active");await renderCurrent()});
+document.getElementById("globalSeason").onchange=changeSeason;document.getElementById("refreshBtn").onclick=changeSeason;document.getElementById("oneScoreToggle").onchange=renderOverview;document.getElementById("defMetric").onchange=renderDefense;document.getElementById("offMetric").onchange=renderOffense;document.getElementById("teamSelect").onchange=renderTeam;document.getElementById("positionGroup").onchange=renderPlayers;document.getElementById("playerTeam").onchange=renderPlayers;document.getElementById("minGames").onchange=renderPlayers;
+(async()=>{try{await loadManifest();await loadSeason();renderOverview()}catch(e){show("mainLoad",`The automated data files have not been generated yet. Open the repository's Actions tab and run “Update NFL analytics data” once. (${e.message})`,true)}})();
 </script>
 </body>
 </html>
